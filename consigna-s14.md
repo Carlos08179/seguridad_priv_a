@@ -53,7 +53,7 @@ Esto significa que:
 
 - **¿Qué sucede si falla la inicialización del sistema de encriptación?**
 
-### Fallback si falla la inicialización de `EncryptedSharedPreferences`
+
 
 Si la inicialización falla (por ejemplo, si el dispositivo no soporta `EncryptedSharedPreferences` o hay un error en la generación del `MasterKey`), se ejecuta este bloque:
 
@@ -78,7 +78,7 @@ Examina `AndroidManifest.xml` y `MainActivity.kt`:
 
 - **Lista todos los permisos peligrosos declarados en el manifiesto**
 
-### Permisos peligrosos en Android
+
 
 Los **permisos peligrosos** (según la clasificación de Android) son aquellos que acceden a datos o recursos personales del usuario y requieren solicitud en tiempo de ejecución (*runtime permissions*) desde **Android 6.0 (API 23)** en adelante.
 
@@ -110,7 +110,7 @@ Los **permisos peligrosos** (según la clasificación de Android) son aquellos q
 
 - **¿Qué patrón se utiliza para solicitar permisos en runtime?**
   
-### Uso de Activity Result API en `MainActivity.kt`
+
 
 En `MainActivity.kt`, se utiliza el patrón **Activity Result API (Jetpack)** con  
 `ActivityResultContracts.RequestPermission()`.
@@ -150,7 +150,7 @@ Revisa `CameraActivity.kt` y `file_paths.xml`:
 
 - **¿Cómo se implementa la compartición segura de archivos de imágenes?**
 
-# Compartición Segura de Imágenes con FileProvider
+
 
 La compartición segura de imágenes se implementa utilizando **FileProvider**, que evita exponer directamente rutas de archivos internas (como `file://...`) a otras aplicaciones. El flujo que se sigue es el siguiente:
 
@@ -194,7 +194,6 @@ El archivo especifica a qué subdirectorios se puede acceder a través de FilePr
 - **¿Qué autoridad se utiliza para el FileProvider?**
 
 
-## Definición de la autoridad
 
 La autoridad definida es:
 
@@ -219,8 +218,6 @@ FileProvider.getUriForFile(
 Esta autoridad debe **coincidir exactamente** entre el código y el `AndroidManifest.xml`.
 
 - **Explica por qué no se debe usar `file://` URIs directamente**
-
-# Problemas de Seguridad con file:// URIs
 
 Usar `file://` URIs está **desaconsejado y bloqueado** desde Android 7.0 (API 24) debido a razones de seguridad:
 
