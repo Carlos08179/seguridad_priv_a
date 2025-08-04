@@ -14,31 +14,45 @@ Analiza el archivo `DataProtectionManager.kt` y responde:
 
 - **¿Qué método de encriptación se utiliza para proteger datos sensibles?**
 
-  Se usa `EncryptedSharedPreferences` con:
-  - Clave maestra (MasterKey) usando el esquema `AES256_GCM`.
-  - Encriptación de llaves con `AES256_SIV`.
-  - Encriptación de valores con `AES256_GCM`.
+Se utilizan dos esquemas de cifrado AES de 256 bits, provistos por la clase EncryptedSharedPreferences:
+•	Para las claves (nombres de las variables):
+PrefKeyEncryptionScheme.AES256_SIV
+
+•	Para los valores (contenido de las variables):
+PrefValueEncryptionScheme.AES256_GCM
+Esto significa que:
+o	La clave del dato se cifra con AES-256-SIV (determinístico y resistente a manipulaciones).
+o	El valor del dato se cifra con AES-256-GCM (modo autenticado, garantiza integridad).
+
 
 - **Identifica al menos 2 posibles vulnerabilidades en la implementación actual del logging**
 
-  1. **Uso incorrecto de separadores de línea en logs**  
-     En el código, para separar líneas se usa la cadena literal `"\\n"` (doble barra invertida + n), que en realidad guarda el texto `\n` en lugar de un salto de línea real.  
-     ```kotlin
-     val newLogs = if (existingLogs.isEmpty()) {
-         logEntry
-     } else {
-         "$existingLogs\\n$logEntry"
-     }
-     ```
+ a) Logs almacenados en texto plano (sin encriptar)
+Los logs se guardan en SharedPreferences normales (accessLogPrefs) sin ningún tipo de cifrado.
+	Problema: Cualquier app con acceso root o malicioso podría leer los registros.
 
-  2. **Posible crecimiento indefinido y problemas de concurrencia**  
-     Cada vez que se agrega un log, se lee todo el historial, se agrega una línea y se vuelve a escribir todo. Esto puede causar:  
-     - Crecimiento innecesario del almacenamiento (degradación de performance).  
-     - Condiciones de carrera si múltiples hilos acceden simultáneamente, provocando pérdida o corrupción de logs.
+b) Logs acumulados en una única clave (logs) como string largo
+Los registros se concatenan en un solo campo de texto con saltos de línea.
+	Problema:
+
+	Se puede llegar al límite de almacenamiento de SharedPreferences.
+	Es ineficiente buscar, filtrar o eliminar entradas específicas.
+	Puede ser vulnerable a corrupción de datos si la app se cierra inesperadamente mientras escribe.
+
 
 - **¿Qué sucede si falla la inicialización del sistema de encriptación?**
 
-  Los datos sensibles **no estarán encriptados**, quedando almacenados en texto plano. Se pierde la protección de confidencialidad para esos datos, aumentando el riesgo ante accesos no autorizados.
+ Si la inicialización falla (por ejemplo, si el dispositivo no soporta EncryptedSharedPreferences o hay un error en la generación del MasterKey), se ejecuta este bloque:
+catch (e: Exception) {
+    // Fallback a SharedPreferences normales
+    encryptedPrefs = context.getSharedPreferences("fallback_prefs", Context.MODE_PRIVATE)
+    accessLogPrefs = context.getSharedPreferences("access_logs", Context.MODE_PRIVATE)
+    
+Esto significa que:
+•	Los datos no estarán encriptados (se usa SharedPreferences comunes).
+•	A pesar del nombre de la clase (DataProtectionManager), los datos estarán desprotegidos si falla la encriptación.
+Consecuencia grave: se rompe el principio de "fail secure", ya que debería impedir el almacenamiento de datos sensibles si no se puede garantizar su seguridad.
+
 
 ---
 
@@ -48,46 +62,85 @@ Examina `AndroidManifest.xml` y `MainActivity.kt`:
 
 - **Lista todos los permisos peligrosos declarados en el manifiesto**
 
-  1. Cámara (`android.permission.CAMERA`)  
-  2. Leer almacenamiento externo (`android.permission.READ_EXTERNAL_STORAGE`)  
-  3. Leer imágenes (`android.permission.READ_MEDIA_IMAGES`)  
-  4. Grabar audio (`android.permission.RECORD_AUDIO`)  
-  5. Leer contactos (`android.permission.READ_CONTACTS`)  
-  6. Realizar llamadas telefónicas (`android.permission.CALL_PHONE`)  
-  7. Enviar SMS (`android.permission.SEND_SMS`)  
-  8. Acceso a ubicación aproximada (`android.permission.ACCESS_COARSE_LOCATION`)
+Los permisos peligrosos (según la clasificación de Android) son aquellos que acceden a datos o recursos personales del usuario y requieren solicitud en tiempo de ejecución (runtime) desde Android 6.0 (API 23) en adelante.
+De los permisos declarados en el AndroidManifest.xml, los siguientes son considerados peligrosos:
+1.	android.permission.CAMERA
+→ Toma de fotos y grabación de video.
+2.	android.permission.READ_EXTERNAL_STORAGE (peligroso, pero obsoleto desde Android 13)
+3.	android.permission.READ_MEDIA_IMAGES
+→ Acceso a imágenes almacenadas (nuevo permiso para Android 13+).
+4.	android.permission.RECORD_AUDIO
+→ Grabación de sonido con el micrófono.
+5.	android.permission.READ_CONTACTS
+→ Acceso a los contactos del usuario.
+6.	android.permission.CALL_PHONE
+→ Permite iniciar llamadas directamente.
+7.	android.permission.ACCESS_COARSE_LOCATION
+→ Acceso a la ubicación aproximada del usuario.
+
 
 - **¿Qué patrón se utiliza para solicitar permisos en runtime?**
-
-  Se usa un método moderno llamado **Activity Result API**, con `registerForActivityResult`.  
-  Cuando el usuario toca un permiso, la app lo solicita, y al responder (aceptar o negar), la app recibe esa respuesta y actúa en consecuencia.
+  
+En MainActivity.kt, se utiliza el patrón: 
+Activity Result API (Jetpack) con ActivityResultContracts.RequestPermission()
+	Ventajas de este patrón:
+•	Más seguro y claro que requestPermissions().
+•	Maneja automáticamente el ciclo de vida.
+•	Compatible con AndroidX y componentes modernos.
 
 - **Identifica qué configuración de seguridad previene backups automáticos**
 
-  En la etiqueta `<application>` está:  
-  ```xml
-  android:allowBackup="false"
-Esto impide que Android haga un respaldo automático de los datos de la app, ayudando a proteger información sensible.
+La siguiente línea en el <application> del AndroidManifest.xml es clave:
+android:allowBackup="false"
+Esto desactiva los backups automáticos del sistema, incluyendo:
+•	Backups a Google Drive.
+•	Backups mediante adb (adb backup).
+Evita que datos sensibles (como preferencias, tokens o configuraciones privadas) se guarden y restauren en otro dispositivo, protegiendo la privacidad y seguridad del usuario.
+
 ### 1.3 Gestión de Archivos (3 puntos)
 
 Revisa `CameraActivity.kt` y `file_paths.xml`:
 
 - **¿Cómo se implementa la compartición segura de archivos de imágenes?**
 
-  Se usa un `FileProvider` que genera un URI con permisos temporales para compartir archivos. Esto permite que otras apps (como la cámara) puedan acceder a los archivos sin exponer rutas directas ni dar permisos permanentes.  
-  En el código, al crear la foto, se genera un URI con `FileProvider.getUriForFile()`, y ese URI se usa para tomar la foto y mostrarla.
+ La compartición segura de imágenes se implementa utilizando FileProvider, que evita exponer directamente rutas de archivos internas (como file://...) a otras aplicaciones. El flujo que se sigue es el siguiente:
+1.	Creación del archivo de imagen:
+val photoFile = createImageFile()
+Este archivo se guarda en un directorio controlado (getExternalFilesDir(null)/Pictures).
+2.	Generación del URI seguro:
+currentPhotoUri = FileProvider.getUriForFile(
+    this,
+    "com.example.seguridad_priv_a.fileprovider", // autoridad
+    photoFile
+)
+Aquí, el URI devuelto es del tipo content://, que puede ser compartido con otras apps de forma segura.
+3.	Uso de ese URI en una intent para tomar foto:
+takePictureLauncher.launch(uri)
+Se lanza una intent con ese URI como destino de la imagen capturada.
+4.	Configuración en file_paths.xml:
+El archivo especifica a qué subdirectorios se puede acceder a través de FileProvider:
+<external-files-path name="my_images" path="Pictures" />
+
 
 - **¿Qué autoridad se utiliza para el FileProvider?**
 
-  La autoridad usada es:  com.example.seguridad_priv_a.fileprovider
-Esta se declara en el manifiesto y luego se usa en el código para generar URIs seguros.
+La autoridad definida es:
+android:authorities="com.example.seguridad_priv_a.fileprovider"
+Y es usada en el código:
+FileProvider.getUriForFile(
+    this,
+    "com.example.seguridad_priv_a.fileprovider",
+    photoFile
+)
+Esta autoridad debe coincidir exactamente entre el código y el AndroidManifest.xml.
+
 
 - **Explica por qué no se debe usar `file://` URIs directamente**
 
-- Porque los URIs con esquema `file://` exponen la ruta exacta del archivo.  
-- No otorgan permisos seguros a otras aplicaciones.  
-- En Android 7+ generan errores debido a restricciones de seguridad.  
-- `FileProvider` crea URIs con permisos temporales que protegen la privacidad y seguridad del archivo.
+Usar file:// URIs está desaconsejado y bloqueado desde Android 7.0 (API 24) debido a razones de seguridad:
+•	Expone la ruta real del sistema de archivos, lo cual puede ser un riesgo.
+•	Rompe el aislamiento entre apps: una app podría intentar leer archivos de otra sin permiso.
+•	Causa FileUriExposedException cuando se intenta compartir un file:// URI con otra app.
 
 ## Parte 2: Implementación y Mejoras Intermedias (8-14 puntos)
 
