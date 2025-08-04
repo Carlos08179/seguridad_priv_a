@@ -30,6 +30,7 @@ Esto significa que:
 
 
 
+
 - **Identifica al menos 2 posibles vulnerabilidades en la implementación actual del logging**
 
 ### a) Logs almacenados en texto plano (sin encriptar)
@@ -47,6 +48,7 @@ Esto significa que:
 - 🔴 Puede alcanzarse el límite de almacenamiento de `SharedPreferences`.  
 - 🔴 Es ineficiente buscar, filtrar o eliminar entradas específicas.  
 - 🔴 Vulnerable a corrupción de datos si la app se cierra inesperadamente durante la escritura.
+
 
 
 - **¿Qué sucede si falla la inicialización del sistema de encriptación?**
