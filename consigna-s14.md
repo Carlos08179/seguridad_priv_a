@@ -22,13 +22,12 @@ Se utilizan dos esquemas de cifrado **AES de 256 bits**, provistos por la clase 
 - **Para los valores (contenido de las variables):**  
   `PrefValueEncryptionScheme.AES256_GCM`
 
----
 
 Esto significa que:
 1. La **clave del dato** se cifra con **AES-256-SIV** (determinístico y resistente a manipulaciones).  
 2. El **valor del dato** se cifra con **AES-256-GCM** (modo autenticado que garantiza integridad).
 
-
+---
 
 
 - **Identifica al menos 2 posibles vulnerabilidades en la implementación actual del logging**
@@ -39,7 +38,6 @@ Esto significa que:
 **Problema:**
 - Cualquier app con acceso root o malicioso podría leer los registros.
 
----
 
 ### b) Logs acumulados en una única clave (`logs`) como string largo
 - Los registros se concatenan en un solo campo de texto con saltos de línea.
@@ -49,7 +47,7 @@ Esto significa que:
 - 🔴 Es ineficiente buscar, filtrar o eliminar entradas específicas.  
 - 🔴 Vulnerable a corrupción de datos si la app se cierra inesperadamente durante la escritura.
 
-
+---
 
 - **¿Qué sucede si falla la inicialización del sistema de encriptación?**
 
@@ -79,10 +77,7 @@ Examina `AndroidManifest.xml` y `MainActivity.kt`:
 - **Lista todos los permisos peligrosos declarados en el manifiesto**
 
 
-
 Los **permisos peligrosos** (según la clasificación de Android) son aquellos que acceden a datos o recursos personales del usuario y requieren solicitud en tiempo de ejecución (*runtime permissions*) desde **Android 6.0 (API 23)** en adelante.
-
----
 
 ### Permisos declarados en `AndroidManifest.xml` considerados peligrosos:
 
@@ -107,6 +102,7 @@ Los **permisos peligrosos** (según la clasificación de Android) son aquellos q
 7. **`android.permission.ACCESS_COARSE_LOCATION`**  
    → Acceso a la ubicación aproximada del usuario.
 
+---
 
 - **¿Qué patrón se utiliza para solicitar permisos en runtime?**
   
@@ -115,17 +111,16 @@ Los **permisos peligrosos** (según la clasificación de Android) son aquellos q
 En `MainActivity.kt`, se utiliza el patrón **Activity Result API (Jetpack)** con  
 `ActivityResultContracts.RequestPermission()`.
 
----
 
 ### ✅ Ventajas de este patrón:
 - ✔️ **Más seguro y claro** que `requestPermissions()`.  
 - ✔️ Maneja automáticamente el **ciclo de vida** de la actividad o fragmento.  
 - ✔️ Totalmente **compatible con AndroidX** y componentes modernos.
 
+---
 
 - **Identifica qué configuración de seguridad previene backups automáticos**
 
-### Configuración clave en `AndroidManifest.xml`
 
 La siguiente línea dentro de la etiqueta `<application>` es fundamental:
 
@@ -143,6 +138,7 @@ Beneficio de seguridad:
 Evita que datos sensibles (preferencias, tokens o configuraciones privadas)
 se guarden y restauren en otro dispositivo, protegiendo así la privacidad y seguridad del usuario.
 
+---
 
 ### 1.3 Gestión de Archivos (3 puntos)
 
@@ -216,6 +212,8 @@ FileProvider.getUriForFile(
 ## Importante
 
 Esta autoridad debe **coincidir exactamente** entre el código y el `AndroidManifest.xml`.
+
+---
 
 - **Explica por qué no se debe usar `file://` URIs directamente**
 
