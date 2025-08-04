@@ -155,36 +155,53 @@ Cada 30 días se fuerza la rotación de la clave maestra utilizada por `Encrypte
 **Código relevante:**
 
 ```kotlin
-private fun shouldRotateKey(): Boolean {
-    val lastRotation = securePrefs.getLong("last_rotation", 0L)
-    val currentTime = System.currentTimeMillis()
-    return (currentTime - lastRotation) > TimeUnit.DAYS.toMillis(30)
-}
+fun rotateEncryptionKey(): Boolean {
+        return try {
+            val allData = encryptedPrefs.all
 
-private fun rotateEncryptionKey() {
-    if (shouldRotateKey()) {
-        securePrefs.edit().putLong("last_rotation", System.currentTimeMillis()).apply()
-        Log.d("Security", "Encryption key rotated.")
+            context.deleteSharedPreferences("secure_prefs")
+
+            val newMasterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+
+            encryptedPrefs = EncryptedSharedPreferences.create(
+                context,
+                "secure_prefs",
+                newMasterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+
+            val editor = encryptedPrefs.edit()
+            for ((key, value) in allData) {
+                when (value) {
+                    is String -> editor.putString(key, value)
+                    is Int -> editor.putInt(key, value)
+                    is Boolean -> editor.putBoolean(key, value)
+                    is Float -> editor.putFloat(key, value)
+                    is Long -> editor.putLong(key, value)
+                }
+            }
+            editor.apply()
+
+            accessLogPrefs.edit().putLong("last_key_rotation", System.currentTimeMillis()).apply()
+            logAccess("KEY_ROTATION", "Clave maestra rotada exitosamente")
+            true
+        } catch (e: Exception) {
+            logAccess("KEY_ROTATION", "Error al rotar clave: ${e.message}")
+            false
+        }
     }
-}
 ```
 - Verificación de integridad de datos encriptados usando HMAC
 ```kotlin
-fun saveSecureData(key: String, value: String, userId: String) {
-    val hmac = generateHMAC(value, userId)
-    securePrefs.edit()
-        .putString(key, value)
-        .putString("${key}_hmac", hmac)
-        .apply()
-}
-
 fun verifyDataIntegrity(key: String): Boolean {
-    val value = securePrefs.getString(key, null) ?: return false
-    val storedHmac = securePrefs.getString("${key}_hmac", null) ?: return false
-    val userId = securePrefs.getString("user_id", "default_user") ?: "default_user"
-    val computedHmac = generateHMAC(value, userId)
-    return storedHmac == computedHmac
-}
+        val value = encryptedPrefs.getString(key, null) ?: return false
+        val storedHmac = encryptedPrefs.getString("${key}_hmac", null) ?: return false
+        val calculatedHmac = computeHMAC(value, key)
+        return storedHmac == calculatedHmac
+    }
 ```
 - Implementación de key derivation con salt único por usuario
 ```kotlin
@@ -200,16 +217,7 @@ private fun generateHMAC(data: String, userId: String): String {
     return Base64.encodeToString(result, Base64.NO_WRAP)
 }
 ```
-```kotlin
-// Ejemplo de estructura esperada
-fun rotateEncryptionKey(): Boolean {
-    // Tu implementación aquí
-}
 
-fun verifyDataIntegrity(key: String): Boolean {
-    // Tu implementación aquí
-}
-```
 ### 2.2 Sistema de Auditoría Avanzado (3 puntos)
 Crea una nueva clase `SecurityAuditManager` que:
 - Detecte intentos de acceso sospechosos (múltiples solicitudes en corto tiempo)
