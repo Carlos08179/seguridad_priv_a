@@ -14,46 +14,59 @@ Analiza el archivo `DataProtectionManager.kt` y responde:
 
 - **¿Qué método de encriptación se utiliza para proteger datos sensibles?**
   
-Se utilizan dos esquemas de cifrado AES de 256 bits, provistos por la clase EncryptedSharedPreferences:
-1)	Para las claves (nombres de las variables):
-i)	PrefKeyEncryptionScheme.AES256_SIV
+Se utilizan dos esquemas de cifrado **AES de 256 bits**, provistos por la clase `EncryptedSharedPreferences`:
 
-2)	Para los valores (contenido de las variables):
-i)	PrefValueEncryptionScheme.AES256_GCM
+- **Para las claves (nombres de las variables):**  
+  `PrefKeyEncryptionScheme.AES256_SIV`
+
+- **Para los valores (contenido de las variables):**  
+  `PrefValueEncryptionScheme.AES256_GCM`
+
+---
+
 Esto significa que:
-1.	La clave del dato se cifra con AES-256-SIV (determinístico y resistente a manipulaciones).
-2.	El valor del dato se cifra con AES-256-GCM (modo autenticado, garantiza integridad).
+1. La **clave del dato** se cifra con **AES-256-SIV** (determinístico y resistente a manipulaciones).  
+2. El **valor del dato** se cifra con **AES-256-GCM** (modo autenticado que garantiza integridad).
 
 
 
 - **Identifica al menos 2 posibles vulnerabilidades en la implementación actual del logging**
 
- a) Logs almacenados en texto plano (sin encriptar)
-Los logs se guardan en SharedPreferences normales (accessLogPrefs) sin ningún tipo de cifrado.
-	Problema: Cualquier app con acceso root o malicioso podría leer los registros.
+### a) Logs almacenados en texto plano (sin encriptar)
+- Los logs se guardan en `SharedPreferences` normales (`accessLogPrefs`) **sin cifrado**.
 
-b) Logs acumulados en una única clave (logs) como string largo
-Los registros se concatenan en un solo campo de texto con saltos de línea.
-	Problema:
+**Problema:**
+- Cualquier app con acceso root o malicioso podría leer los registros.
 
-	Se puede llegar al límite de almacenamiento de SharedPreferences.
-	Es ineficiente buscar, filtrar o eliminar entradas específicas.
-	Puede ser vulnerable a corrupción de datos si la app se cierra inesperadamente mientras escribe.
+---
+
+### b) Logs acumulados en una única clave (`logs`) como string largo
+- Los registros se concatenan en un solo campo de texto con saltos de línea.
+
+**Problemas:**
+- 🔴 Puede alcanzarse el límite de almacenamiento de `SharedPreferences`.  
+- 🔴 Es ineficiente buscar, filtrar o eliminar entradas específicas.  
+- 🔴 Vulnerable a corrupción de datos si la app se cierra inesperadamente durante la escritura.
 
 
 - **¿Qué sucede si falla la inicialización del sistema de encriptación?**
 
- Si la inicialización falla (por ejemplo, si el dispositivo no soporta EncryptedSharedPreferences o hay un error en la generación del MasterKey), se ejecuta este bloque:
+### Fallback si falla la inicialización de `EncryptedSharedPreferences`
+
+Si la inicialización falla (por ejemplo, si el dispositivo no soporta `EncryptedSharedPreferences` o hay un error en la generación del `MasterKey`), se ejecuta este bloque:
+
+```kotlin
 catch (e: Exception) {
     // Fallback a SharedPreferences normales
     encryptedPrefs = context.getSharedPreferences("fallback_prefs", Context.MODE_PRIVATE)
     accessLogPrefs = context.getSharedPreferences("access_logs", Context.MODE_PRIVATE)
-    
-Esto significa que:
-•	Los datos no estarán encriptados (se usa SharedPreferences comunes).
-•	A pesar del nombre de la clase (DataProtectionManager), los datos estarán desprotegidos si falla la encriptación.
-Consecuencia grave: se rompe el principio de "fail secure", ya que debería impedir el almacenamiento de datos sensibles si no se puede garantizar su seguridad.
+}
+```
 
+Esto significa que:
+❌ Los datos no estarán encriptados (se usan SharedPreferences comunes).
+
+❌ A pesar del nombre de la clase (DataProtectionManager), los datos quedan desprotegidos si falla la encriptación.
 
 ---
 
@@ -63,40 +76,71 @@ Examina `AndroidManifest.xml` y `MainActivity.kt`:
 
 - **Lista todos los permisos peligrosos declarados en el manifiesto**
 
-Los permisos peligrosos (según la clasificación de Android) son aquellos que acceden a datos o recursos personales del usuario y requieren solicitud en tiempo de ejecución (runtime) desde Android 6.0 (API 23) en adelante.
-De los permisos declarados en el AndroidManifest.xml, los siguientes son considerados peligrosos:
-1.	android.permission.CAMERA
-→ Toma de fotos y grabación de video.
-2.	android.permission.READ_EXTERNAL_STORAGE (peligroso, pero obsoleto desde Android 13)
-3.	android.permission.READ_MEDIA_IMAGES
-→ Acceso a imágenes almacenadas (nuevo permiso para Android 13+).
-4.	android.permission.RECORD_AUDIO
-→ Grabación de sonido con el micrófono.
-5.	android.permission.READ_CONTACTS
-→ Acceso a los contactos del usuario.
-6.	android.permission.CALL_PHONE
-→ Permite iniciar llamadas directamente.
-7.	android.permission.ACCESS_COARSE_LOCATION
-→ Acceso a la ubicación aproximada del usuario.
+### Permisos peligrosos en Android
+
+Los **permisos peligrosos** (según la clasificación de Android) son aquellos que acceden a datos o recursos personales del usuario y requieren solicitud en tiempo de ejecución (*runtime permissions*) desde **Android 6.0 (API 23)** en adelante.
+
+---
+
+### Permisos declarados en `AndroidManifest.xml` considerados peligrosos:
+
+1. **`android.permission.CAMERA`**  
+   → Toma de fotos y grabación de video.
+
+2. **`android.permission.READ_EXTERNAL_STORAGE`** *(obsoleto desde Android 13)*  
+   → Acceso a archivos en el almacenamiento externo.
+
+3. **`android.permission.READ_MEDIA_IMAGES`** *(Android 13+)*  
+   → Acceso a imágenes almacenadas.
+
+4. **`android.permission.RECORD_AUDIO`**  
+   → Grabación de sonido con el micrófono.
+
+5. **`android.permission.READ_CONTACTS`**  
+   → Acceso a los contactos del usuario.
+
+6. **`android.permission.CALL_PHONE`**  
+   → Permite iniciar llamadas directamente.
+
+7. **`android.permission.ACCESS_COARSE_LOCATION`**  
+   → Acceso a la ubicación aproximada del usuario.
 
 
 - **¿Qué patrón se utiliza para solicitar permisos en runtime?**
   
-En MainActivity.kt, se utiliza el patrón: 
-Activity Result API (Jetpack) con ActivityResultContracts.RequestPermission()
-	Ventajas de este patrón:
-•	Más seguro y claro que requestPermissions().
-•	Maneja automáticamente el ciclo de vida.
-•	Compatible con AndroidX y componentes modernos.
+### Uso de Activity Result API en `MainActivity.kt`
+
+En `MainActivity.kt`, se utiliza el patrón **Activity Result API (Jetpack)** con  
+`ActivityResultContracts.RequestPermission()`.
+
+---
+
+### ✅ Ventajas de este patrón:
+- ✔️ **Más seguro y claro** que `requestPermissions()`.  
+- ✔️ Maneja automáticamente el **ciclo de vida** de la actividad o fragmento.  
+- ✔️ Totalmente **compatible con AndroidX** y componentes modernos.
+
 
 - **Identifica qué configuración de seguridad previene backups automáticos**
 
-La siguiente línea en el <application> del AndroidManifest.xml es clave:
+### Configuración clave en `AndroidManifest.xml`
+
+La siguiente línea dentro de la etiqueta `<application>` es fundamental:
+
+```xml
 android:allowBackup="false"
-Esto desactiva los backups automáticos del sistema, incluyendo:
-•	Backups a Google Drive.
-•	Backups mediante adb (adb backup).
-Evita que datos sensibles (como preferencias, tokens o configuraciones privadas) se guarden y restauren en otro dispositivo, protegiendo la privacidad y seguridad del usuario.
+```
+¿Qué hace?
+❌ Desactiva los backups automáticos del sistema, incluyendo:
+
+Copias en Google Drive.
+
+Backups mediante ADB (adb backup).
+
+Beneficio de seguridad:
+Evita que datos sensibles (preferencias, tokens o configuraciones privadas)
+se guarden y restauren en otro dispositivo, protegiendo así la privacidad y seguridad del usuario.
+
 
 ### 1.3 Gestión de Archivos (3 puntos)
 
@@ -104,44 +148,85 @@ Revisa `CameraActivity.kt` y `file_paths.xml`:
 
 - **¿Cómo se implementa la compartición segura de archivos de imágenes?**
 
- La compartición segura de imágenes se implementa utilizando FileProvider, que evita exponer directamente rutas de archivos internas (como file://...) a otras aplicaciones. El flujo que se sigue es el siguiente:
-1.	Creación del archivo de imagen:
+# Compartición Segura de Imágenes con FileProvider
+
+La compartición segura de imágenes se implementa utilizando **FileProvider**, que evita exponer directamente rutas de archivos internas (como `file://...`) a otras aplicaciones. El flujo que se sigue es el siguiente:
+
+## 1. Creación del archivo de imagen
+
+```kotlin
 val photoFile = createImageFile()
-Este archivo se guarda en un directorio controlado (getExternalFilesDir(null)/Pictures).
-2.	Generación del URI seguro:
+```
+
+Este archivo se guarda en un directorio controlado (`getExternalFilesDir(null)/Pictures`).
+
+## 2. Generación del URI seguro
+
+```kotlin
 currentPhotoUri = FileProvider.getUriForFile(
     this,
     "com.example.seguridad_priv_a.fileprovider", // autoridad
     photoFile
 )
-Aquí, el URI devuelto es del tipo content://, que puede ser compartido con otras apps de forma segura.
-3.	Uso de ese URI en una intent para tomar foto:
+```
+
+Aquí, el URI devuelto es del tipo `content://`, que puede ser compartido con otras apps de forma segura.
+
+## 3. Uso de ese URI en una intent para tomar foto
+
+```kotlin
 takePictureLauncher.launch(uri)
+```
+
 Se lanza una intent con ese URI como destino de la imagen capturada.
-4.	Configuración en file_paths.xml:
+
+## 4. Configuración en file_paths.xml
+
 El archivo especifica a qué subdirectorios se puede acceder a través de FileProvider:
+
+```xml
 <external-files-path name="my_images" path="Pictures" />
+```
 
 
 - **¿Qué autoridad se utiliza para el FileProvider?**
 
+
+## Definición de la autoridad
+
 La autoridad definida es:
+
+```xml
 android:authorities="com.example.seguridad_priv_a.fileprovider"
+```
+
+## Uso en el código
+
 Y es usada en el código:
+
+```kotlin
 FileProvider.getUriForFile(
     this,
     "com.example.seguridad_priv_a.fileprovider",
     photoFile
 )
-Esta autoridad debe coincidir exactamente entre el código y el AndroidManifest.xml.
+```
 
+## Importante
+
+Esta autoridad debe **coincidir exactamente** entre el código y el `AndroidManifest.xml`.
 
 - **Explica por qué no se debe usar `file://` URIs directamente**
 
-Usar file:// URIs está desaconsejado y bloqueado desde Android 7.0 (API 24) debido a razones de seguridad:
-•	Expone la ruta real del sistema de archivos, lo cual puede ser un riesgo.
-•	Rompe el aislamiento entre apps: una app podría intentar leer archivos de otra sin permiso.
-•	Causa FileUriExposedException cuando se intenta compartir un file:// URI con otra app.
+# Problemas de Seguridad con file:// URIs
+
+Usar `file://` URIs está **desaconsejado y bloqueado** desde Android 7.0 (API 24) debido a razones de seguridad:
+
+## Riesgos principales
+
+- **Expone la ruta real del sistema de archivos**, lo cual puede ser un riesgo.
+- **Rompe el aislamiento entre apps**: una app podría intentar leer archivos de otra sin permiso.
+- **Causa `FileUriExposedException`** cuando se intenta compartir un `file://` URI con otra app.
 
 ## Parte 2: Implementación y Mejoras Intermedias (8-14 puntos)
 
@@ -227,23 +312,70 @@ Crea una nueva clase `SecurityAuditManager` que:
 
 1. SecurityAuditManager.kt
 
-Clase personalizada encargada de:
+✨ Funcionalidades:
+Detección de accesos sospechosos: Verifica si hay demasiadas solicitudes en un intervalo corto.
 
-⚡ Detección de accesos sospechosos: identifica intentos múltiples en corto tiempo por ID de permiso.
+Rate limiting: Bloquea operaciones sensibles si se exceden los límites permitidos.
 
-⛔ Rate limiting: bloquea acciones cuando hay muchos accesos seguidos (por defecto más de 3 intentos en 10 segundos).
+Generación de alertas: Notifica internamente cuando hay patrones anómalos.
 
-🚨 Generación de alertas: muestra un AlertDialog si se detectan patrones anómalos.
+Exportación de logs en JSON firmado digitalmente: Usa Signature para firmar los datos con una clave privada.
 
-📃 Exportación de logs firmados: exporta un archivo .json con los eventos registrados, firmado digitalmente con HMAC-SHA256.
+Implementamos la nueva clase creada en el MainActivity.kt
 ```kotlin
-val securityAuditManager = SecurityAuditManager.getInstance(context)
-val allowed = securityAuditManager.registerAccess("Camera")
-if (allowed) {
-    startActivity(Intent(context, CameraActivity::class.java))
-} else {
-    // Bloqueado por actividad sospechosa
-}
+ // ✅ Agregamos SecurityAuditManager
+    private lateinit var securityManager: SecurityAuditManager
+
+    private val permissions = listOf(
+        PermissionItem(
+            name = "Cámara",
+            description = "Tomar fotos y acceder a la cámara",
+            permission = Manifest.permission.CAMERA,
+            activityClass = CameraActivity::class.java
+        ),
+        PermissionItem(
+            name = "Galería",
+            description = "Acceder a imágenes almacenadas",
+            permission = Manifest.permission.READ_MEDIA_IMAGES,
+            activityClass = GalleryActivity::class.java
+        ),
+        PermissionItem(
+            name = "Micrófono",
+            description = "Grabar audio con el micrófono",
+            permission = Manifest.permission.RECORD_AUDIO,
+            activityClass = AudioActivity::class.java
+        ),
+        PermissionItem(
+            name = "Contactos",
+            description = "Leer lista de contactos",
+            permission = Manifest.permission.READ_CONTACTS,
+            activityClass = ContactsActivity::class.java
+        ),
+        PermissionItem(
+            name = "Teléfono",
+            description = "Realizar llamadas telefónicas",
+            permission = Manifest.permission.CALL_PHONE,
+            activityClass = PhoneActivity::class.java
+        ),
+        PermissionItem(
+            name = "Ubicación",
+            description = "Obtener ubicación aproximada",
+            permission = Manifest.permission.ACCESS_COARSE_LOCATION,
+            activityClass = LocationActivity::class.java
+        ),
+        PermissionItem(
+            name = "Protección de Datos",
+            description = "Ver logs y protección de datos",
+            permission = null,
+            activityClass = DataProtectionActivity::class.java
+        ),
+        PermissionItem(
+            name = "Política de Privacidad",
+            description = "Política de privacidad y términos",
+            permission = null,
+            activityClass = PrivacyPolicyActivity::class.java
+        )
+    )
 ```
 📂 Estructura del Proyecto
 ```kotlin
@@ -267,64 +399,94 @@ Implementa autenticación biométrica en `DataProtectionActivity.kt`:
 - Integra BiometricPrompt API para proteger el acceso a logs
 - Implementa fallback a PIN/Pattern si biometría no está disponible
 - Añade timeout de sesión tras inactividad de 5 minutos
-#### 🔐 1. Autenticación Biométrica (Huella, Rostro, etc.)
-Se ha integrado la API `BiometricPrompt` de Android para permitir el acceso a la actividad **solo mediante autenticación biométrica válida**.
+  
+En esta actividad se implementó autenticación biométrica (huella/rostro) utilizando la API BiometricPrompt de Android, para proteger el acceso a los logs en DataProtectionActivity.
+Además, se añadió:
 
-- Al iniciar la actividad, se muestra un cuadro de diálogo biométrico al usuario.
-- Si el usuario cancela o falla la autenticación, no puede acceder a los datos sensibles.
-- La autenticación se vuelve a solicitar si la app es reabierta tras tiempo de inactividad.
+- Fallback a PIN/Patrón en caso de que la biometría no esté disponible o falle.
+- Timeout de sesión de 5 minutos que bloquea nuevamente la vista si hay inactividad.
 
-#### 🔁 2. Mecanismo de Respaldo (Fallback)
-Si el dispositivo **no cuenta con sensores biométricos** o el usuario no tiene una biometría configurada, se usa un **fallback manual**, actualmente simulado como un diálogo personalizado que permite ingresar un código de respaldo (PIN o patrón simulado).
 
-> 📌 Este fallback puede conectarse con almacenamiento cifrado o autenticación real basada en contraseña en futuras versiones.
-
-#### ⏳ 3. Expiración de Sesión (Inactividad > 5 min)
-Se implementó un sistema de control de sesión que:
-- Guarda la hora del último uso mediante `EncryptedSharedPreferences`.
-- Al volver a abrir la actividad, se compara la hora actual con la última actividad.
-- Si han pasado más de **5 minutos de inactividad**, se solicita **reautenticación**.
-
----
-### 📁 Archivos Relevantes
-
-- `DataProtectionActivity.kt`: Lógica de autenticación biométrica y verificación de sesión.
-- `DataProtectionManager.kt`: Clase encargada del almacenamiento seguro y auditoría.
-- `res/xml/biometric_prompt.xml`: (opcional) Configuración visual del prompt.
-- `AndroidManifest.xml`: Incluye permisos y declaración de la actividad protegida.
+🔑 Código relevante:
+1️⃣ Configuración de BiometricPrompt:
 
 ---
 ```kotlin
-private fun setupBiometricAuthentication() {
-    val executor = ContextCompat.getMainExecutor(this)
+biometricPrompt = BiometricPrompt(this, executor, object : BiometricPrompt.AuthenticationCallback() {
+    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+        Toast.makeText(this@DataProtectionActivity, "Autenticación exitosa", Toast.LENGTH_SHORT).show()
+        setupUI()
+        loadAccessLogs()
+        startSessionTimeoutTimer()
+    }
 
-    biometricPrompt = BiometricPrompt(this, executor,
-        object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                super.onAuthenticationSucceeded(result)
-                Toast.makeText(applicationContext, "Autenticación exitosa", Toast.LENGTH_SHORT).show()
-                // Permitir acceso a los datos protegidos
-                lastInteractionTime = System.currentTimeMillis()
-            }
+    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+        fallbackToPin() // Si falla, usamos PIN
+    }
+})
 
-            override fun onAuthenticationFailed() {
-                super.onAuthenticationFailed()
-                Toast.makeText(applicationContext, "Autenticación fallida", Toast.LENGTH_SHORT).show()
-            }
 
-            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                super.onAuthenticationError(errorCode, errString)
-                Toast.makeText(applicationContext, "Error: $errString", Toast.LENGTH_SHORT).show()
-            }
-        })
-
-    promptInfo = BiometricPrompt.PromptInfo.Builder()
-        .setTitle("Autenticación Requerida")
-        .setSubtitle("Usa tu huella o patrón para continuar")
-        .setDeviceCredentialAllowed(true) // Permite PIN/Patrón como fallback
-        .build()
-}
 ```
+
+2️⃣ Creación de la ventana biométrica:
+
+---
+```kotlin
+promptInfo = BiometricPrompt.PromptInfo.Builder()
+    .setTitle("Autenticación requerida")
+    .setSubtitle("Usa tu huella, rostro o método seguro")
+    .setNegativeButtonText("Usar PIN/Patrón")
+    .build()
+
+biometricPrompt.authenticate(promptInfo)
+
+```
+
+3️⃣ Fallback a PIN:
+Se creó un diálogo con un layout dialog_pin_input.xml que contiene un EditText para ingresar el PIN:
+
+---
+```kotlin
+private fun fallbackToPin() {
+    val dialogView = layoutInflater.inflate(R.layout.dialog_pin_input, null)
+    val etPin = dialogView.findViewById<EditText>(R.id.etPin)
+
+    AlertDialog.Builder(this)
+        .setTitle("Autenticación con PIN/Patrón")
+        .setView(dialogView)
+        .setPositiveButton("Aceptar") { _, _ ->
+            if (etPin.text.toString() == "1234") {
+                Toast.makeText(this, "PIN aceptado", Toast.LENGTH_SHORT).show()
+                setupUI()
+            } else {
+                Toast.makeText(this, "PIN incorrecto", Toast.LENGTH_SHORT).show()
+            }
+        }
+        .setNegativeButton("Cancelar") { _, _ -> finish() }
+        .show()
+}
+
+```
+4️⃣ Timeout de sesión:
+
+---
+```kotlin
+private val sessionTimeoutMillis: Long = 5 * 60 * 1000 // 5 minutos
+private val timeoutRunnable = Runnable {
+    requireAuthentication("Sesión expirada. Autentícate de nuevo.")
+}
+
+override fun onUserInteraction() {
+    super.onUserInteraction()
+    handler.removeCallbacks(timeoutRunnable)
+    handler.postDelayed(timeoutRunnable, sessionTimeoutMillis)
+}
+
+```
+✅ Conclusión:
+Esta implementación asegura que solo usuarios autenticados (biometría o PIN) puedan acceder a información sensible como los logs, reforzando la seguridad de la aplicación.
+
+
 ## Parte 3: Arquitectura de Seguridad Avanzada (15-20 puntos)
 
 ### 3.1 Implementación de Zero-Trust Architecture (3 puntos)
@@ -333,6 +495,46 @@ Diseña e implementa un sistema que:
 - Implemente principio de menor privilegio por contexto
 - Mantenga sesiones de seguridad con tokens temporales
 - Incluya attestation de integridad de la aplicación
+
+  ## Resumen de implementación
+
+- **Se creó la clase `SecureSessionManager`** para gestionar seguridad avanzada.
+- Funcionalidades principales:
+  1. **Validación de operaciones sensibles:** Cada acción (ver/borrar logs) verifica token y permisos.
+  2. **Principio de menor privilegio:** Roles (`ROLE_USER`, `ROLE_ADMIN`, `ROLE_AUDITOR`) con permisos específicos.
+  3. **Sesiones seguras con tokens temporales:** Tokens únicos con validez de 5 min.
+  4. **Attestation de integridad:** Verifica la firma del APK comparando el hash SHA-256 esperado.
+
+### En `DataProtectionActivity`:
+- Se inicializa `SecureSessionManager` tras autenticación biométrica o PIN.
+- Se genera token de sesión y se asigna un rol.
+- Antes de operaciones críticas (ver/borrar logs) se valida el token y permisos.
+- En `onResume()`, se limpian tokens vencidos y se fuerza reautenticación si el token no es válido.
+
+---
+
+## Código clave
+---
+```kotlin
+// Crear token y asignar rol
+secureSessionManager.setRole("ROLE_USER")
+sessionToken = secureSessionManager.createSessionToken()
+
+// Validar operación
+if (sessionToken != null && secureSessionManager.validateOperation(sessionToken!!, "DELETE_LOGS")) {
+    showClearDataDialog()
+} else {
+    Toast.makeText(this, "Permiso denegado", Toast.LENGTH_SHORT).show()
+}
+
+// Attestation de integridad
+if (!secureSessionManager.performAppAttestation()) {
+    Toast.makeText(this, "Integridad comprometida", Toast.LENGTH_LONG).show()
+    finish()
+}
+
+```
+
 
 ### 3.2 Protección Contra Ingeniería Inversa (3 puntos)
 Implementa medidas anti-tampering:
