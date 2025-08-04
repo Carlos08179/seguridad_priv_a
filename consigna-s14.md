@@ -13,16 +13,17 @@ Esta evaluación técnica se basa en una aplicación Android que implementa un s
 Analiza el archivo `DataProtectionManager.kt` y responde:
 
 - **¿Qué método de encriptación se utiliza para proteger datos sensibles?**
+  
+Se utilizan dos esquemas de cifrado AES de 256 bits, provistos por la clase EncryptedSharedPreferences:
+1)	Para las claves (nombres de las variables):
+i)	PrefKeyEncryptionScheme.AES256_SIV
 
-    Se utilizan dos esquemas de cifrado AES de 256 bits, provistos por la clase EncryptedSharedPreferences:
-    •	Para las claves (nombres de las variables):
-    PrefKeyEncryptionScheme.AES256_SIV
-    
-    •	Para los valores (contenido de las variables):
-    PrefValueEncryptionScheme.AES256_GCM
-    Esto significa que:
-     o	La clave del dato se cifra con AES-256-SIV (determinístico y resistente a manipulaciones).
-     o	El valor del dato se cifra con AES-256-GCM (modo autenticado, garantiza integridad).
+2)	Para los valores (contenido de las variables):
+i)	PrefValueEncryptionScheme.AES256_GCM
+Esto significa que:
+1.	La clave del dato se cifra con AES-256-SIV (determinístico y resistente a manipulaciones).
+2.	El valor del dato se cifra con AES-256-GCM (modo autenticado, garantiza integridad).
+
 
 
 - **Identifica al menos 2 posibles vulnerabilidades en la implementación actual del logging**
