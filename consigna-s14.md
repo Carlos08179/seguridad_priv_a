@@ -14,15 +14,15 @@ Analiza el archivo `DataProtectionManager.kt` y responde:
 
 - **¿Qué método de encriptación se utiliza para proteger datos sensibles?**
 
-Se utilizan dos esquemas de cifrado AES de 256 bits, provistos por la clase EncryptedSharedPreferences:
-•	Para las claves (nombres de las variables):
-PrefKeyEncryptionScheme.AES256_SIV
-
-•	Para los valores (contenido de las variables):
-PrefValueEncryptionScheme.AES256_GCM
-Esto significa que:
-o	La clave del dato se cifra con AES-256-SIV (determinístico y resistente a manipulaciones).
-o	El valor del dato se cifra con AES-256-GCM (modo autenticado, garantiza integridad).
+    Se utilizan dos esquemas de cifrado AES de 256 bits, provistos por la clase EncryptedSharedPreferences:
+    •	Para las claves (nombres de las variables):
+    PrefKeyEncryptionScheme.AES256_SIV
+    
+    •	Para los valores (contenido de las variables):
+    PrefValueEncryptionScheme.AES256_GCM
+    Esto significa que:
+     o	La clave del dato se cifra con AES-256-SIV (determinístico y resistente a manipulaciones).
+     o	El valor del dato se cifra con AES-256-GCM (modo autenticado, garantiza integridad).
 
 
 - **Identifica al menos 2 posibles vulnerabilidades en la implementación actual del logging**
